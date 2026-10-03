@@ -8,7 +8,7 @@
 #                   The other 7 Q40 subscales are NOT touched here.
 #   - 3 exposures : A_SE / A_PC / A_DI AI-use purposes (Q37S3 items).
 #   - 3 outcomes  : UCLA-3 loneliness + LSNS-friends/family @ 2025.
-#   - 39 baseline-2024 covariates (C).
+#   - 44 baseline-2024 covariates (C).
 #
 # Standalone — duplicates the §0 build of the mediation outcome scripts by
 # intention (no source()); does NOT modify or read from diagnosis.R. All
@@ -17,7 +17,7 @@
 # Diagnostics:
 #   1.  Cohort flow                 — n at each filter step (2025 initiators)
 #   2.  Missingness (used items)    — % missing per used variable (6 mediator
-#                                     items + 9 purpose items + 3 outcomes + 39 C)
+#                                     items + 9 purpose items + 3 outcomes + 44C)
 #   3.  Variable construction sanity — range/mean/SD/N for 3 A, 2 mediators,
 #                                     3 outcomes, baselines
 #   4.  Cronbach's α                — W_attach + W_anthrop + 3 A composites +
@@ -50,7 +50,7 @@
 #                                     vs locked (None=1470/Low=414/
 #                                     Mid=334/High=272), W_attach & W_anthrop α + r
 #   12. Centered-VIF                  — collinearity of the mean-centered outcome-model
-#                                     predictors (3 A_*_c + W_c + 3 A_*_c×W_c + 39 C),
+#                                     predictors (3 A_*_c + W_c + 3 A_*_c×W_c + 44C),
 #                                     one table per mediator → 12_vif_outcome_model.csv
 #                                     (flags any term VIF > 5; needs the `car` package)
 #
@@ -164,7 +164,7 @@ ai_start <- safe_col("Q37S1_2025"); df$ai_start <- ai_start
 for (a in A_VARS)   df[[paste0(a, "_continuous")]] <- row_mean(df, A_SPEC[[a]], na_rm = FALSE) - 1
 for (m in MED_VARS) df[[m]] <- row_mean(df, MED_SPEC[[m]], na_rm = FALSE)
 
-# Baselines + 39 covariates (identical to the mediation scripts' build)
+# Baselines + 44 covariates (identical to the mediation scripts' build)
 df$baseline_ucla3 <- row_sum_fn(df, paste0("Q66.", 1:3, "_2024"), fn = ucla_recode)
 df$baseline_k6    <- row_sum_fn(df, paste0("Q65.", 1:6, "_2024"), fn = k6_recode)
 ace_cols <- intersect(paste0("Q77.", c(1:8, 13), "_2024"), names(df))
@@ -193,6 +193,16 @@ df$mental_physical_health <- row_mean(df, c("Q76.3_2024", "Q76.4_2024"))
 df <- make_timeuse_dummies(df, "Q28.13_2024", "smartphone"); df <- make_timeuse_dummies(df, "Q28.14_2024", "pc_tablet")
 df <- make_timeuse_dummies(df, "Q28.5_2024",  "sitting");    df <- make_timeuse_dummies(df, "Q28.6_2024",  "walking")
 
+# Big Five personality (TIPI-J, Q79.1-10 @ 2024; 1-7 agreement). Each domain = mean of its
+# two items after reversing the reverse-keyed item (8 - x): Q79.1/6R extraversion,
+# Q79.2R/7 agreeableness, Q79.3/8R conscientiousness, Q79.4/9R neuroticism, Q79.5/10R openness.
+tipi_pair <- function(d, fwd, rev) { a <- as_num(d[[fwd]]); b <- 8 - as_num(d[[rev]]); (a + b) / 2 }
+df$big5_extraversion     <- tipi_pair(df, "Q79.1_2024", "Q79.6_2024")
+df$big5_agreeableness    <- tipi_pair(df, "Q79.7_2024", "Q79.2_2024")
+df$big5_conscientiousness <- tipi_pair(df, "Q79.3_2024", "Q79.8_2024")
+df$big5_neuroticism      <- tipi_pair(df, "Q79.4_2024", "Q79.9_2024")
+df$big5_openness         <- tipi_pair(df, "Q79.5_2024", "Q79.10_2024")
+
 C_VARS <- c(
   "age_2024", "sex_female", "edu_univ", "edu_grad",
   "emp_exec", "emp_self", "emp_nonreg", "emp_student", "emp_notwork",
@@ -202,9 +212,10 @@ C_VARS <- c(
   "smartphone_band_1_2", "smartphone_band_3_4", "smartphone_band_5plus", "smartphone_unknown",
   "pc_tablet_band_1_2",  "pc_tablet_band_3_4",  "pc_tablet_band_5plus",  "pc_tablet_unknown",
   "sitting_band_1_2",    "sitting_band_3_4",    "sitting_band_5plus",    "sitting_unknown",
-  "walking_band_1_2",    "walking_band_3_4",    "walking_band_5plus",    "walking_unknown"
+  "walking_band_1_2",    "walking_band_3_4",    "walking_band_5plus",    "walking_unknown",
+  "big5_extraversion", "big5_agreeableness", "big5_conscientiousness", "big5_neuroticism", "big5_openness"
 )
-stopifnot(length(C_VARS) == 39L)
+stopifnot(length(C_VARS) == 44L)
 
 A_cont_vars <- paste0(A_VARS, "_continuous")
 
@@ -213,13 +224,13 @@ ds <- df[ai_start %in% c(5L, 6L), , drop = FALSE]
 n_cohort <- nrow(ds)
 log_msg(sprintf("Cohort (initiators, codes 5+6): n = %d", n_cohort))
 
-# Global complete-case on the mediation analytic set (Y_ucla3 + 3A + 2 mediators + 39C)
+# Global complete-case on the mediation analytic set (Y_ucla3 + 3A + 2 mediators + 44C)
 all_used <- unique(c("Y_ucla3", A_cont_vars, MED_VARS, C_VARS))
 n_used_cca <- sum(complete.cases(ds[, intersect(all_used, names(ds)), drop = FALSE]))
-log_msg(sprintf("Mediation analytic CCA (UCLA + 3A + 2 mediators + 39C) n = %d (%.1f%% of cohort)",
+log_msg(sprintf("Mediation analytic CCA (UCLA + 3A + 2 mediators + 44C) n = %d (%.1f%% of cohort)",
                 n_used_cca, 100 * n_used_cca / max(n_cohort, 1L)))
 if (n_used_cca < 100L) add_flag("warn", "mediation CCA n", "n < 100",
-  sprintf("only %d survive CC on UCLA + 3A + 2 mediators + 39C; per-diagnostic CCA used (expected on dummy; real ≈ 2,490)", n_used_cca))
+  sprintf("only %d survive CC on UCLA + 3A + 2 mediators + 44C; per-diagnostic CCA used (expected on dummy; real ≈ 2,490)", n_used_cca))
 
 # =============================================================================
 # Diagnostic 1 — Cohort flow
@@ -228,7 +239,7 @@ log_msg("\n[1] Cohort flow")
 flow_df <- data.frame(
   step = c("raw_2wave_panel", "excluded_code1_never_user", "excluded_code2_past_users",
            "excluded_code3_pre_2024", "excluded_code4_during_2024", "excluded_NA_ai_start",
-           "cohort_kept_codes_5_6_initiators", "mediation_CCA_UCLA_3A_2med_39C"),
+           "cohort_kept_codes_5_6_initiators", "mediation_CCA_UCLA_3A_2med_44C"),
   n = c(nrow(df), sum(ai_start == 1L, na.rm = TRUE), sum(ai_start == 2L, na.rm = TRUE),
         sum(ai_start == 3L, na.rm = TRUE), sum(ai_start == 4L, na.rm = TRUE),
         sum(is.na(ai_start)), n_cohort, n_used_cca),
@@ -435,8 +446,9 @@ run_efa_block <- function(efa_items, tag, label, n_theory, item_map) {
   load_df$MSA_item   <- round(unname(msai[rownames(Lm)]), 3)    # per-item KMO
   write.csv(load_df, file.path(OUT_BASE, sprintf("%s_loadings.csv", tag)), row.names = FALSE, fileEncoding = "UTF-8")
   va <- fit_fa$Vaccounted
+  cum_row <- if ("Cumulative Var" %in% rownames(va)) "Cumulative Var" else "Proportion Var"
   write.csv(data.frame(factor = colnames(va), SS_loadings = va["SS loadings", ], prop_var = va["Proportion Var", ],
-    cum_var = va["Cumulative Var", ], stringsAsFactors = FALSE),
+    cum_var = va[cum_row, ], stringsAsFactors = FALSE),
     file.path(OUT_BASE, sprintf("%s_variance.csv", tag)), row.names = FALSE, fileEncoding = "UTF-8")
   phi <- fit_fa$Phi
   if (!is.null(phi) && is.matrix(phi) && nrow(phi) > 1L) {
@@ -446,7 +458,7 @@ run_efa_block <- function(efa_items, tag, label, n_theory, item_map) {
     off <- phi_m[upper.tri(phi_m)]
     log_msg(sprintf("  [%s] oblique factor correlations: mean |r|=%.2f, max |r|=%.2f (%s).", tag, mean(abs(off)), max(abs(off)), rotate_use))
   } else log_msg(sprintf("  [%s] no factor-correlation matrix (orthogonal rotation or single factor).", tag))
-  cum_var_use <- as.numeric(va["Cumulative Var", ncol(va)])
+  cum_var_use <- as.numeric(va[cum_row, ncol(va)])
 
   # ---- model-fit + adequacy summary (KMO, Bartlett, RMSEA, TLI, RMSR, BIC, chi-square) ----
   getf <- function(x, i = 1L) if (!is.null(x) && length(x) >= i && is.finite(x[i])) as.numeric(x[i]) else NA_real_
@@ -589,7 +601,7 @@ log_msg("  wrote 11_mediation_readiness.csv")
 # =============================================================================
 # Diagnostic 12 — Centered-VIF on the mediation outcome model (collinearity)
 #   VIF of the mean-centered outcome-model predictors {A_SE_c, A_PC_c, A_DI_c,
-#   W_c, the three A_*_c × W_c interactions, 39 C}. VIF depends only on the
+#   W_c, the three A_*_c × W_c interactions, 44C}. VIF depends only on the
 #   predictor matrix, so it is outcome-independent (Y_ucla3 is a nominal response).
 #   Mean-centering removes the artificial interaction-term inflation (uncentered
 #   A:W VIFs are large by construction, not by real collinearity). One table per

@@ -8,17 +8,17 @@
 #           primary parameterization = cat4 (None + user-tertiles)
 # Mediator: W_attach = perceived AI-attachment, mean of Q40.22 + Q40.23 + Q40.24 (1-7)
 # Outcome : Y_ucla3  = UCLA-3 loneliness sum @ 2025, 0-9, higher = more lonely
-# Cov (C) : 39 baseline-2024 covariates + the 2 non-focal purpose composites per run
+# Cov (C) : 44 baseline-2024 covariates + the 2 non-focal purpose composites per run
 #
 # Sections
 #   §0  Build cohort + cat4 / tertile / binary factors + sanity logs
 #   §1  PRIMARY     cat4 mediation, all 3 purposes (CMAverse rb, EMint, 4-way decomp)
 #   §1b PRIMARY     omnibus cat4 joint indirect-effect test (A_SE focal; feeds the 6-cell BH-FDR family)
-#   §2  SENSITIVITY tertile mediator (cat4 × W_attach_tert)
-#   §3  SENSITIVITY binary (`any vs none`) × 3 purposes
-#   §4  SENSITIVITY continuous overall (∓0.5 SD) × 3 purposes + CMAverse cross-check
-#   §5  SENSITIVITY per-item mediator (each Q40 item used individually; A_SE focal, cat4 + binary)
-#   §6  SENSITIVITY joint-mediator interventional analogue — gformula + postc:
+#   §2  SENSITIVITY (manuscript S1) tertile mediator (cat4 × W_attach_tert)
+#   §3  SENSITIVITY (manuscript S2) binary (`any vs none`) × 3 purposes
+#   §4  SENSITIVITY (manuscript S3) continuous overall (∓0.5 SD) × 3 purposes + CMAverse cross-check
+#   §5  SENSITIVITY (manuscript S5) per-item mediator (each Q40 item used individually; A_SE focal, cat4 + binary)
+#   §6  SENSITIVITY (manuscript S4) joint-mediator interventional analogue — gformula + postc:
 #                   attach net-of-anthrop + the symmetric flip; A_SE focal, this script's outcome.
 #                   Present in the 3 W_attach OUTCOME scripts (each produces both directions for
 #                   its own outcome); not in the anthrop trio. Exploratory; outside §7.7.
@@ -47,10 +47,6 @@ MED_ITEM_LABELS <- c(
 OUT_TAG    <- "loneliness"
 PREFIX     <- "attach"
 
-# ---- CMAverse (install once: remotes::install_github("BS1125/CMAverse")) ----
-HAVE_CMAVERSE <- requireNamespace("CMAverse", quietly = TRUE) &&
-  tryCatch(exists("cmest", envir = asNamespace("CMAverse"), inherits = FALSE), error = function(e) FALSE)
-.cma_load_method <- if (HAVE_CMAVERSE) "package" else "none"
 
 # ---- Path / mode detection ----
 find_proj_root <- function() {
@@ -92,8 +88,37 @@ LOG_FILE   <- file.path(LOGS_DIR, sprintf("run_%s_%s_%s_%s.log", PREFIX, OUT_TAG
 log_msg     <- function(...) { m <- paste0(format(Sys.time(), "[%H:%M:%S] "), paste(..., collapse = " ")); cat(m, "\n", sep = ""); cat(m, "\n", sep = "", file = LOG_FILE, append = TRUE); invisible(m) }
 write_table <- function(x, name) { fp <- file.path(TABLES_DIR, paste0(PREFIX, "_", name, ".csv")); utils::write.csv(x, fp, row.names = FALSE, fileEncoding = "UTF-8"); log_msg("wrote:", fp) }
 
+# ---- CMAverse loader (installed package; pkgload from local source as fallback) ----
+# If CMAverse cannot be installed as a package (an upstream lazy-load failure occurs under
+# R 4.5.x), an unmodified source checkout (upstream commit b2ce059) can be loaded with pkgload from
+# r_code/CMAverse_src/ or from the directory named by the CMAVERSE_SRC environment variable.
+HAVE_CMAVERSE <- FALSE; .cma_load_method <- "none"; .cma_load_err <- NULL
+.try_pkgload <- function(src_dir) {
+  if (!dir.exists(src_dir)) return(FALSE)
+  if (!requireNamespace("pkgload", quietly = TRUE)) {
+    .cma_load_err <<- "pkgload not installed"; return(FALSE)
+  }
+  ok <- tryCatch({
+    suppressMessages(pkgload::load_all(src_dir, quiet = TRUE, attach = FALSE, helpers = FALSE))
+    TRUE
+  }, error = function(e) { .cma_load_err <<- conditionMessage(e); FALSE })
+  if (!ok) return(FALSE)
+  tryCatch(exists("cmest", envir = asNamespace("CMAverse"), inherits = FALSE),
+           error = function(e) FALSE)
+}
+if (length(find.package("CMAverse", quiet = TRUE)) > 0L &&
+    tryCatch(exists("cmest", envir = asNamespace("CMAverse"), inherits = FALSE),
+             error = function(e) FALSE)) {
+  HAVE_CMAVERSE <- TRUE; .cma_load_method <- "package"
+} else if (.try_pkgload(file.path(.proj_root, "CMAverse_src"))) {
+  HAVE_CMAVERSE <- TRUE; .cma_load_method <- "pkgload_in_repo"
+} else if (nzchar(Sys.getenv("CMAVERSE_SRC", "")) && .try_pkgload(Sys.getenv("CMAVERSE_SRC"))) {
+  HAVE_CMAVERSE <- TRUE; .cma_load_method <- "pkgload_external"   # path given by the CMAVERSE_SRC environment variable
+}
 log_msg(sprintf("=== START === construct=%s outcome=%s mode=%s input=%s", PREFIX, OUT_TAG, RUN_MODE, DATA_PATH))
-log_msg(sprintf("CMAverse: %s (%s) | N_WORKERS=%d", HAVE_CMAVERSE, .cma_load_method, N_WORKERS))
+log_msg(sprintf("CMAverse: %s (%s)%s | N_WORKERS=%d", HAVE_CMAVERSE, .cma_load_method,
+                if (!HAVE_CMAVERSE && !is.null(.cma_load_err)) paste0(" err=", .cma_load_err) else "",
+                N_WORKERS))
 
 # ============================================================
 # §0  Build cohort + helpers
@@ -140,7 +165,7 @@ df$Y_ucla3 <- .row_sum_fn(df, paste0("Q66.", 1:3, "_2025"), fn = .ucla_rec)
 for (a in A_VARS) df[[paste0(a, "_continuous")]] <- .row_mean(df, A_SPEC[[a]], na_rm = FALSE) - 1
 df$W_attach <- .row_mean(df, MED_ITEMS, na_rm = FALSE)
 
-# 39 baseline-2024 confounders
+# 44 baseline-2024 confounders
 df$baseline_ucla3 <- .row_sum_fn(df, paste0("Q66.", 1:3, "_2024"), fn = .ucla_rec)
 df$baseline_k6    <- .row_sum_fn(df, paste0("Q65.", 1:6, "_2024"), fn = .k6_rec)
 
@@ -180,6 +205,16 @@ df$mental_physical_health <- .row_mean(df, c("Q76.3_2024", "Q76.4_2024"))
 df <- .timeuse(df, "Q28.13_2024", "smartphone"); df <- .timeuse(df, "Q28.14_2024", "pc_tablet")
 df <- .timeuse(df, "Q28.5_2024",  "sitting");    df <- .timeuse(df, "Q28.6_2024",  "walking")
 
+# Big Five personality (TIPI-J, Q79.1-10 @ 2024; 1-7 agreement). Each domain = mean of its
+# two items after reversing the reverse-keyed item (8 - x): Q79.1/6R extraversion,
+# Q79.2R/7 agreeableness, Q79.3/8R conscientiousness, Q79.4/9R neuroticism, Q79.5/10R openness.
+.tipi_pair <- function(d, fwd, rev) { a <- .as_num(d[[fwd]]); b <- 8 - .as_num(d[[rev]]); (a + b) / 2 }
+df$big5_extraversion     <- .tipi_pair(df, "Q79.1_2024", "Q79.6_2024")
+df$big5_agreeableness    <- .tipi_pair(df, "Q79.7_2024", "Q79.2_2024")
+df$big5_conscientiousness <- .tipi_pair(df, "Q79.3_2024", "Q79.8_2024")
+df$big5_neuroticism      <- .tipi_pair(df, "Q79.4_2024", "Q79.9_2024")
+df$big5_openness         <- .tipi_pair(df, "Q79.5_2024", "Q79.10_2024")
+
 C_VARS <- c(
   # demographic / SES (15)
   "age_2024", "sex_female", "edu_univ", "edu_grad",
@@ -193,9 +228,11 @@ C_VARS <- c(
   "smartphone_band_1_2", "smartphone_band_3_4", "smartphone_band_5plus", "smartphone_unknown",
   "pc_tablet_band_1_2", "pc_tablet_band_3_4", "pc_tablet_band_5plus", "pc_tablet_unknown",
   "sitting_band_1_2", "sitting_band_3_4", "sitting_band_5plus", "sitting_unknown",
-  "walking_band_1_2", "walking_band_3_4", "walking_band_5plus", "walking_unknown"
+  "walking_band_1_2", "walking_band_3_4", "walking_band_5plus", "walking_unknown",
+  # Big Five personality, TIPI-J (5)
+  "big5_extraversion", "big5_agreeableness", "big5_conscientiousness", "big5_neuroticism", "big5_openness"
 )
-stopifnot(length(C_VARS) == 39L)
+stopifnot(length(C_VARS) == 44L)
 
 # Cohort filter + complete-case
 ai_start <- .safe("Q37S1_2025"); df$ai_start <- ai_start
@@ -434,7 +471,7 @@ if (.run_ok) {
 }
 
 # ============================================================
-# §2  SENSITIVITY — tertile mediator (cat4 × W_attach_tert; multinomial mreg)
+# §2  SENSITIVITY (manuscript S1) — tertile mediator (cat4 × W_attach_tert; multinomial mreg)
 # ============================================================
 if (.run_ok && HAVE_CMAVERSE && nlevels(droplevels(dm$W_attach_tert)) >= 2L) {
   res <- list()
@@ -451,7 +488,7 @@ if (.run_ok && HAVE_CMAVERSE && nlevels(droplevels(dm$W_attach_tert)) >= 2L) {
 }
 
 # ============================================================
-# §3  SENSITIVITY — binary exposure (any vs none) across 3 purposes
+# §3  SENSITIVITY (manuscript S2) — binary exposure (any vs none) across 3 purposes
 # ============================================================
 if (.run_ok && HAVE_CMAVERSE) {
   res <- list()
@@ -472,7 +509,7 @@ if (.run_ok && HAVE_CMAVERSE) {
 }
 
 # ============================================================
-# §4  SENSITIVITY — continuous exposure overall (∓0.5 SD) + CMAverse cross-check
+# §4  SENSITIVITY (manuscript S3) — continuous exposure overall (∓0.5 SD) + CMAverse cross-check
 # ============================================================
 boot_nat_eff <- function(d, focal, cv, a_sd, R) {
   point <- nat_eff(d, focal, cv, a_sd)
@@ -536,7 +573,7 @@ if (.run_ok) {
 }
 
 # ============================================================
-# §5  SENSITIVITY — per-item mediator (each Q40 item used individually)
+# §5  SENSITIVITY (manuscript S5) — per-item mediator (each Q40 item used individually)
 # A_SE focal only. Tests whether the composite construct rides on one item or
 # moves together across all three. Cat4 primary + binary; no tertile / no continuous
 # per-item (single ordinal items don't benefit from those reparameterizations).
@@ -578,7 +615,7 @@ if (.run_ok && HAVE_CMAVERSE) {
 }
 
 # ============================================================
-# §6  SENSITIVITY — joint-mediator randomized interventional analogue
+# §6  SENSITIVITY (manuscript S4) — joint-mediator randomized interventional analogue
 # W_attach and W_anthrop correlate r≈0.65 → natural path-specific effects are unidentified
 # (codebook §3). The randomized INTERVENTIONAL analogue (Vansteelandt & Daniel 2017) IS
 # identified with the OTHER mediator as an exposure-induced (post-treatment) confounder
@@ -590,7 +627,7 @@ if (.run_ok && HAVE_CMAVERSE) {
 # cmest bootstrap (mirrors §1–§3). Exploratory: outside the §7.7 primary family; does not touch
 # Table 2/2b/3. Present in the 3 W_attach OUTCOME scripts; each produces BOTH
 # directions for its own outcome. W_anthrop is built LOCALLY so §0 stays identical across the 6.
-# Output: attach_interventional.csv in this outcome's folder (packager Sup Table 11).
+# Output: attach_interventional.csv in this outcome's folder (packager Sup Table 12).
 # ============================================================
 if (.run_ok && HAVE_CMAVERSE) {
   ANTHROP_ITEMS <- paste0("Q40.", 1:3, "_2025")

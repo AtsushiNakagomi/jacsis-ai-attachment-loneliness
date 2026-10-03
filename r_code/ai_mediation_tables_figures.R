@@ -14,7 +14,7 @@
 #   (per-item is integrated as §5 in each outcome script -> reads from the same 6 folders)
 #   output/ai_mod/mediation_attach_<outcome>/tables/attach_interventional.csv
 #   output/ai_mod/diagnosis_mediation/
-#   raw CSV (Table 1 / Sup 3 / Sup 4 cohort characteristics; guarded)
+#   raw CSV (Table 1 / Sup 4 / Sup 5 cohort characteristics; guarded)
 #
 # Writes to: output/ai_mod/manuscript/{tables,figures,logs}/
 #
@@ -23,19 +23,34 @@
 #   Table 2     PRIMARY multiplicity — cat4 omnibus joint indirect-effect test, BH-FDR over 6
 #               (2 candidate mediators × 3 outcomes, A_SE focal; codebook §7.7)
 #   Table 3     PRIMARY cat4 A_SE × 3 outcomes × 3 contrasts — W_attach + W_anthrop side-by-side
-#   Sup Table 1 EFA — AI-use purposes (9 items): oblique loadings + factor correlations
-#   Sup Table 2 EFA — 2 mediators (6 items): oblique loadings + factor correlations
+#   (Supplementary Tables are numbered as in the published Supplementary Data; sensitivity/
+#   robustness analyses are numbered S1–S9 as in the manuscript, Section 3.3.)
+#   Sup Table 1 baseline characteristics by generative-AI status at 2025 (all two-wave respondents;
+#               from ai_measurement_validity.R)
+#   Sup Table 2 EFA — AI-use purposes (9 items): oblique loadings + factor correlations
+#   Sup Table 3 EFA — 2 mediators (6 items): oblique loadings + factor correlations
 #               (attach↔anthrop factor cor ≈ 0.72)
-#   Sup Table 3 Characteristics — by A_PC cat4
-#   Sup Table 4 Characteristics — by A_DI cat4
-#   Sup Table 5 cat4 A_PC × 3 outcomes × 3 contrasts — W_attach + W_anthrop
-#   Sup Table 6 cat4 A_DI × 3 outcomes × 3 contrasts — W_attach + W_anthrop
-#   Sup Table 7 tertile mediator (A_SE cat4 × W_attach_tert / W_anthrop_tert) × 3 outcomes
-#   Sup Table 8 binary `any vs none` × 3 purposes × 3 outcomes × both mediators
-#   Sup Table 9 continuous (∓0.5 SD) × 3 purposes × 3 outcomes × both mediators
-#   Sup Table 10 per-item cat4 A_SE × 3 outcomes × 3 contrasts × 6 single items
-#   Sup Table 11 joint-mediator interventional (S6): A_SE cat4 × 3 outcomes, r-effects,
-#               2 configs (attach net-of-anthrop; anthrop net-of-attach)
+#   Sup Table 4 Characteristics — by A_PC cat4
+#   Sup Table 5 Characteristics — by A_DI cat4
+#   Sup Table 6 baseline predictors of 2025 social/emotional use and of the two perceptions
+#               (from ai_measurement_validity.R)
+#   Sup Table 7 cat4 A_PC × 3 outcomes × 3 contrasts — W_attach + W_anthrop
+#   Sup Table 8 cat4 A_DI × 3 outcomes × 3 contrasts — W_attach + W_anthrop
+#   Sup Table 9 S1 tertile mediator (A_SE cat4 × W_attach_tert / W_anthrop_tert) × 3 outcomes
+#   Sup Table 10 S2 binary `any vs none` × 3 purposes × 3 outcomes × both mediators
+#   Sup Table 11 S3 continuous (∓0.5 SD) × 3 purposes × 3 outcomes × both mediators
+#   Sup Table 12 S4 joint-mediator interventional (outcome scripts §6): A_SE cat4 × 3 outcomes,
+#               r-effects, 2 configs (attach net-of-anthrop; anthrop net-of-attach)
+#   Sup Table 13 S5 per-item cat4 A_SE × 3 outcomes × 3 contrasts × 6 single items (outcome scripts §5)
+#               + S6 two-item attachment composite row (from ai_robustness.R)
+#   Table 2b    follow-up (2025) mediators and outcomes by A_SE cat4 (from ai_measurement_validity.R)
+#   Table 3b    SD-standardized TNIE (TNIE ÷ SD of the 2025 outcome) for the primary cells
+#   Sup Table 14 robustness of the six primary cells: REF reference / S7 January-2025 baseline
+#               responders excluded / S8 July–December 2025 initiators / S9 attrition IPW
+#               (from ai_robustness.R)
+#   Sup Table 15 construct distinctness: correlations, reliability, HTMT (ai_measurement_validity.R)
+#   Sup Table 16 EFA attachment + UCLA-3 items; Sup Table 17 EFA attachment + anthropomorphism +
+#               problematic-use items (ai_measurement_validity.R)
 #
 #   Figure 1    Conceptual DAG (MD placeholder — drawn manually)
 #   Sup Fig 1   Sample flow chart (raw → 2025 AI initiators → analytic complete-case)
@@ -133,7 +148,7 @@ ESTIMANDS_FULL <- c("cde","pnde","pnie","tnie","intmed","intref","te")
 ESTIMANDS_CONT <- c("TE","CDE","PNDE","TNDE","PNIE","TNIE","INT_med","INT_ref","a_path_b1","bm_theta2")
 
 # ============================================================
-# §A  Analytic cohort build (raw read; for Table 1 / Sup 3 / Sup 4)
+# §A  Analytic cohort build (raw read; for Table 1 / Sup 4 / Sup 5)
 # ============================================================
 .as_num     <- function(x) suppressWarnings(as.numeric(x))
 .row_mean   <- function(d, cols, na_rm = FALSE) { cols <- intersect(cols, names(d)); if (!length(cols)) return(rep(NA_real_, nrow(d))); rowMeans(vapply(d[cols], .as_num, numeric(nrow(d))), na.rm = na_rm) }
@@ -186,7 +201,13 @@ build_cohort <- function() {
   } else ds$ace_score <- NA_real_
   ds <- .timeuse(ds, "Q28.13_2024", "smartphone"); ds <- .timeuse(ds, "Q28.14_2024", "pc_tablet")
   ds <- .timeuse(ds, "Q28.5_2024", "sitting");     ds <- .timeuse(ds, "Q28.6_2024", "walking")
-  # reference category (0–<1 h/day) = none of the 4 dummies; shown in Table 1 / Sup 3/4
+  .tipi_pair <- function(d, fwd, rev) { a <- .as_num(d[[fwd]]); b <- 8 - .as_num(d[[rev]]); (a + b) / 2 }
+  ds$big5_extraversion     <- .tipi_pair(ds, "Q79.1_2024", "Q79.6_2024")
+  ds$big5_agreeableness    <- .tipi_pair(ds, "Q79.7_2024", "Q79.2_2024")
+  ds$big5_conscientiousness <- .tipi_pair(ds, "Q79.3_2024", "Q79.8_2024")
+  ds$big5_neuroticism      <- .tipi_pair(ds, "Q79.4_2024", "Q79.9_2024")
+  ds$big5_openness         <- .tipi_pair(ds, "Q79.5_2024", "Q79.10_2024")
+  # reference category (0–<1 h/day) = none of the 4 dummies; shown in Table 1 / Sup 4/5
   for (.p in c("smartphone", "pc_tablet", "sitting", "walking"))
     ds[[paste0(.p, "_band_0_1")]] <- as.integer(
       ds[[paste0(.p, "_band_1_2")]] + ds[[paste0(.p, "_band_3_4")]] +
@@ -204,7 +225,8 @@ build_cohort <- function() {
   reqd <- c("Y_ucla3","Y_lsns_friends_2025","Y_lsns_family_2025",
             "A_SE","A_PC","A_DI","W_attach","W_anthrop",
             "age_2024","sex_female","baseline_ucla3","baseline_k6",
-            "baseline_lsns6_family","baseline_lsns6_friends","mental_physical_health")
+            "baseline_lsns6_family","baseline_lsns6_friends","mental_physical_health",
+            "big5_extraversion","big5_agreeableness","big5_conscientiousness","big5_neuroticism","big5_openness")
   ds <- ds[complete.cases(ds[, intersect(reqd, names(ds)), drop = FALSE]), , drop = FALSE]
   ds$A_SE_cat4 <- make_cat4(ds$A_SE)
   ds$A_PC_cat4 <- make_cat4(ds$A_PC)
@@ -215,7 +237,7 @@ build_cohort <- function() {
 .COHORT <- build_cohort()
 
 # ============================================================
-# Characteristics-table builder (Table 1 / Sup 3 / Sup 4)
+# Characteristics-table builder (Table 1 / Sup 4 / Sup 5)
 # ============================================================
 .t1_spec <- list(
   c("n","n","n"),
@@ -242,6 +264,11 @@ build_cohort <- function() {
   c("Baseline K6 distress (0-24), mean (SD)","baseline_k6","cont"),
   c("ACE score (count), mean (SD)","ace_score","cont"),
   c("Mental & physical health composite, mean (SD)","mental_physical_health","cont"),
+  c("Extraversion (TIPI-J, 1-7), mean (SD)","big5_extraversion","cont"),
+  c("Agreeableness (TIPI-J, 1-7), mean (SD)","big5_agreeableness","cont"),
+  c("Conscientiousness (TIPI-J, 1-7), mean (SD)","big5_conscientiousness","cont"),
+  c("Neuroticism (TIPI-J, 1-7), mean (SD)","big5_neuroticism","cont"),
+  c("Openness (TIPI-J, 1-7), mean (SD)","big5_openness","cont"),
   c("Smartphone: 0–<1 h/day (ref)","smartphone_band_0_1","bin"),
   c("Smartphone: 1-2 h/day","smartphone_band_1_2","bin"),
   c("Smartphone: 3-4 h/day","smartphone_band_3_4","bin"),
@@ -293,13 +320,13 @@ build_chars_table <- function(ds, strat_col, output_name, include_total = TRUE) 
 
 log_msg(">>> Table 1: characteristics — Total + by A_SE cat4")
 build_chars_table(.COHORT, "A_SE_cat4", "table_1_cohort_by_A_SE", include_total = TRUE)
-log_msg(">>> Sup Table 3: characteristics by A_PC cat4")
-build_chars_table(.COHORT, "A_PC_cat4", "sup_table_3_cohort_by_A_PC", include_total = FALSE)
-log_msg(">>> Sup Table 4: characteristics by A_DI cat4")
-build_chars_table(.COHORT, "A_DI_cat4", "sup_table_4_cohort_by_A_DI", include_total = FALSE)
+log_msg(">>> Sup Table 4: characteristics by A_PC cat4")
+build_chars_table(.COHORT, "A_PC_cat4", "sup_table_4_cohort_by_A_PC", include_total = FALSE)
+log_msg(">>> Sup Table 5: characteristics by A_DI cat4")
+build_chars_table(.COHORT, "A_DI_cat4", "sup_table_5_cohort_by_A_DI", include_total = FALSE)
 
 # ============================================================
-# Paired-mediator cat4 mediation table (Table 3 / Sup 5 / Sup 6)
+# Paired-mediator cat4 mediation table (Table 3 / Sup 7 / Sup 8)
 # Each row = (Outcome, Contrast); columns = each estimand × Attach + Anthrop (with p).
 # ============================================================
 build_cat4_paired <- function(focal_exposure, output_name) {
@@ -337,10 +364,10 @@ build_cat4_paired <- function(focal_exposure, output_name) {
 }
 log_msg(">>> Table 3: PRIMARY cat4 A_SE × W_attach + W_anthrop")
 build_cat4_paired("A_SE_cat4", "table_3_primary_cat4_A_SE")
-log_msg(">>> Sup Table 5: cat4 A_PC × W_attach + W_anthrop")
-build_cat4_paired("A_PC_cat4", "sup_table_5_cat4_A_PC")
-log_msg(">>> Sup Table 6: cat4 A_DI × W_attach + W_anthrop")
-build_cat4_paired("A_DI_cat4", "sup_table_6_cat4_A_DI")
+log_msg(">>> Sup Table 7: cat4 A_PC × W_attach + W_anthrop")
+build_cat4_paired("A_PC_cat4", "sup_table_7_cat4_A_PC")
+log_msg(">>> Sup Table 8: cat4 A_DI × W_attach + W_anthrop")
+build_cat4_paired("A_DI_cat4", "sup_table_8_cat4_A_DI")
 
 # ============================================================
 # Table 2 — PRIMARY multiplicity: cat4 omnibus joint indirect-effect test,
@@ -375,11 +402,11 @@ build_primary_omnibus_bh <- function() {
 build_primary_omnibus_bh()
 
 # ============================================================
-# Sup Table 5 — Tertile-mediator sensitivity (A_SE cat4 × W_attach_tert / W_anthrop_tert)
+# Sup Table 9 — S1 tertile-mediator sensitivity (A_SE cat4 × W_attach_tert / W_anthrop_tert)
 # Long format: Outcome × Mediator × Contrast × Estimand × est_ci × p
 # ============================================================
-log_msg(">>> Sup Table 7: tertile mediator sens, A_SE × 3 outcomes")
-build_sup7 <- function() {
+log_msg(">>> Sup Table 9 (S1): tertile mediator sens, A_SE × 3 outcomes")
+build_sup9_tertile <- function() {
   rows <- list()
   for (oc in names(OUTCOMES)) {
     for (med in c("W_attach (tertile)", "W_anthrop (tertile)")) {
@@ -393,16 +420,16 @@ build_sup7 <- function() {
       rows[[length(rows) + 1L]] <- d[, c("Outcome","Mediator","contrast","estimand","est_ci","p"), drop = FALSE]
     }
   }
-  if (!length(rows)) { log_msg("Sup 7 SKIP (tertile)."); return(invisible(NULL)) }
-  write_table(do.call(rbind, rows), "sup_table_7_tertile_mediator_sens")
+  if (!length(rows)) { log_msg("Sup 9 SKIP (tertile)."); return(invisible(NULL)) }
+  write_table(do.call(rbind, rows), "sup_table_9_tertile_mediator_S1")
 }
-build_sup7()
+build_sup9_tertile()
 
 # ============================================================
-# Sup Table 6 — Binary sensitivity (`any vs none`) × 3 purposes × both mediators
+# Sup Table 10 — S2 binary sensitivity (`any vs none`) × 3 purposes × both mediators
 # ============================================================
-log_msg(">>> Sup Table 8: binary (any vs none) × 3 purposes × both mediators")
-build_sup8 <- function() {
+log_msg(">>> Sup Table 10 (S2): binary (any vs none) × 3 purposes × both mediators")
+build_sup10_binary <- function() {
   rows <- list()
   for (oc in names(OUTCOMES)) {
     for (construct in c("attach","anthrop")) {
@@ -415,17 +442,17 @@ build_sup8 <- function() {
       rows[[length(rows) + 1L]] <- d[, c("Outcome","Mediator","exposure","estimand","est_ci","p"), drop = FALSE]
     }
   }
-  if (!length(rows)) { log_msg("Sup 8 SKIP (binary)."); return(invisible(NULL)) }
-  write_table(do.call(rbind, rows), "sup_table_8_binary_3purposes")
+  if (!length(rows)) { log_msg("Sup 10 SKIP (binary)."); return(invisible(NULL)) }
+  write_table(do.call(rbind, rows), "sup_table_10_binary_3purposes_S2")
 }
-build_sup8()
+build_sup10_binary()
 
 # ============================================================
-# Sup Table 7 — Continuous (∓0.5 SD) sensitivity × 3 purposes × both mediators
+# Sup Table 11 — S3 continuous (∓0.5 SD) sensitivity × 3 purposes × both mediators
 # Note: closed-form CSVs use lowercase column names (estimate/ci_lo/ci_hi/p).
 # ============================================================
-log_msg(">>> Sup Table 9: continuous (∓0.5 SD) × 3 purposes × both mediators")
-build_sup9 <- function() {
+log_msg(">>> Sup Table 11 (S3): continuous (∓0.5 SD) × 3 purposes × both mediators")
+build_sup11_continuous <- function() {
   rows <- list()
   for (oc in names(OUTCOMES)) {
     for (construct in c("attach","anthrop")) {
@@ -437,18 +464,20 @@ build_sup9 <- function() {
       rows[[length(rows) + 1L]] <- d[, c("Outcome","Mediator","focal","estimand","est_ci","p","R"), drop = FALSE]
     }
   }
-  if (!length(rows)) { log_msg("Sup 9 SKIP (continuous)."); return(invisible(NULL)) }
-  write_table(do.call(rbind, rows), "sup_table_9_continuous_3purposes")
+  if (!length(rows)) { log_msg("Sup 11 SKIP (continuous)."); return(invisible(NULL)) }
+  write_table(do.call(rbind, rows), "sup_table_11_continuous_3purposes_S3")
 }
-build_sup9()
+build_sup11_continuous()
 
 # ============================================================
-# Sup Table 10 — Per-item sensitivity (A_SE cat4 × 6 items × 3 outcomes)
+# Sup Table 13 — S5 per-item sensitivity (A_SE cat4 × 6 items × 3 outcomes)
+# (the S6 two-item attachment composite row of the same published table is written by
+#  build_sup14_robustness() below, from the ai_robustness.R output)
 # Reads each outcome script's §5 output (`<construct>_per_item_cat4.csv` in each
 # per-outcome folder) and aggregates with the Outcome column added during merge.
 # ============================================================
-log_msg(">>> Sup Table 10: per-item cat4 A_SE × 3 outcomes × 6 items")
-build_sup10 <- function() {
+log_msg(">>> Sup Table 13 (S5): per-item cat4 A_SE × 3 outcomes × 6 items")
+build_sup13_per_item <- function() {
   rows <- list()
   for (oc in names(OUTCOMES)) {
     for (construct in c("attach","anthrop")) {
@@ -462,20 +491,20 @@ build_sup10 <- function() {
       rows[[length(rows) + 1L]] <- d[, c("Outcome","Mediator_construct","mediator_item","mediator_label","contrast","estimand","est_ci","p"), drop = FALSE]
     }
   }
-  if (!length(rows)) { log_msg("Sup 10 SKIP: per-item CSVs missing."); return(invisible(NULL)) }
-  write_table(do.call(rbind, rows), "sup_table_10_per_item_cat4_A_SE")
+  if (!length(rows)) { log_msg("Sup 13 SKIP: per-item CSVs missing."); return(invisible(NULL)) }
+  write_table(do.call(rbind, rows), "sup_table_13_per_item_cat4_A_SE_S5")
 }
-build_sup10()
+build_sup13_per_item()
 
 # ============================================================
-# Sup Table 11 — Joint-mediator interventional sensitivity
+# Sup Table 12 — S4 joint-mediator interventional sensitivity
 # Reads §6 of the 3 W_attach OUTCOME scripts (`attach_interventional.csv` in each of the
 # 3 attach outcome folders). Randomized interventional analogue r-effects, A_SE cat4 ×
 # each outcome, two symmetric configs (attach net-of-anthrop; anthrop net-of-attach).
 # r-prefixed effects passed through verbatim — NOT natural effects. Exploratory; outside §7.7.
 # ============================================================
-log_msg(">>> Sup Table 11: joint-mediator interventional (S6) — A_SE cat4 × 3 outcomes, both configs")
-build_sup11 <- function() {
+log_msg(">>> Sup Table 12 (S4): joint-mediator interventional (outcome scripts §6) — A_SE cat4 × 3 outcomes, both configs")
+build_sup12_interventional <- function() {
   rows <- list()
   for (oc in names(OUTCOMES)) {
     d <- read_outcome("attach", oc, "interventional"); if (is.null(d)) next
@@ -488,17 +517,17 @@ build_sup11 <- function() {
     d$p <- vapply(d$P.val, fmt_p, character(1))
     rows[[length(rows) + 1L]] <- d[, c("Outcome","Config","mediator","postc","contrast","estimand","est_ci","p"), drop = FALSE]
   }
-  if (!length(rows)) { log_msg("Sup 11 SKIP: attach_interventional.csv missing (run §6 of the 3 attach scripts)."); return(invisible(NULL)) }
-  write_table(do.call(rbind, rows), "sup_table_11_interventional_S6")
+  if (!length(rows)) { log_msg("Sup 12 SKIP: attach_interventional.csv missing (run §6 of the 3 attach scripts)."); return(invisible(NULL)) }
+  write_table(do.call(rbind, rows), "sup_table_12_interventional_S4")
 }
-build_sup11()
+build_sup12_interventional()
 
 # ============================================================
-# Sup Tables 1 & 2 — EFA of the used items.
-# Sup 1 = AI-use purposes (9 Q37S3 items); Sup 2 = the 2 mediators (6 Q40 items).
+# Sup Tables 2 & 3 — EFA of the used items.
+# Sup 2 = AI-use purposes (9 Q37S3 items); Sup 3 = the 2 mediators (6 Q40 items).
 # Each emits: oblique loadings (+ per-item h2/u2/complexity/MSA) + factor-correlation
 # matrix + a `_fit.csv` with KMO / Bartlett / RMSEA / TLI / RMSR / BIC / model χ²
-# (Sup 2's attach↔anthrop factor cor ≈ 0.72 is the empirical basis for the parallel
+# (Sup 3's attach↔anthrop factor cor ≈ 0.72 is the empirical basis for the parallel
 # single-mediator design, codebook §3). Pure passthrough of the diagnosis CSVs.
 # ============================================================
 build_efa_sup <- function(stem, tab_loadings, tab_factorcor, label) {
@@ -510,10 +539,104 @@ build_efa_sup <- function(stem, tab_loadings, tab_factorcor, label) {
   var_d  <- read_diag(paste0(stem, "_variance"))
   if (!is.null(var_d) && "cum_var" %in% names(var_d)) log_msg(sprintf("  %s cumulative variance = %.1f%%", label, 100 * max(var_d$cum_var, na.rm = TRUE)))
 }
-log_msg(">>> Sup Table 1: EFA — AI-use purposes (9 items)")
-build_efa_sup("08_efa_purposes", "sup_table_1_efa_purposes", "sup_table_1_efa_purposes_factor_cor", "Sup 1 (purposes EFA)")
-log_msg(">>> Sup Table 2: EFA — mediators (6 items: attach + anthrop)")
-build_efa_sup("09_efa_mediators", "sup_table_2_efa_mediators", "sup_table_2_efa_mediators_factor_cor", "Sup 2 (mediators EFA)")
+log_msg(">>> Sup Table 2: EFA — AI-use purposes (9 items)")
+build_efa_sup("08_efa_purposes", "sup_table_2_efa_purposes", "sup_table_2_efa_purposes_factor_cor", "Sup 2 (purposes EFA)")
+log_msg(">>> Sup Table 3: EFA — mediators (6 items: attach + anthrop)")
+build_efa_sup("09_efa_mediators", "sup_table_3_efa_mediators", "sup_table_3_efa_mediators_factor_cor", "Sup 3 (mediators EFA)")
+
+# ============================================================
+# Revision-stage inputs: ai_measurement_validity.R and ai_robustness.R outputs
+# ============================================================
+VALID_DIR <- .norm(file.path(.proj_root, "output", "ai_mod", paste0(.tag, "validity"), "tables"))
+ROBUST_DIR <- .norm(file.path(.proj_root, "output", "ai_mod", paste0(.tag, "robustness"), "tables"))
+read_dir <- function(dir, name) {
+  fp <- file.path(dir, paste0(name, ".csv"))
+  if (!file.exists(fp)) { log_msg(sprintf("  missing: %s", fp)); return(NULL) }
+  readr::read_csv(fp, show_col_types = FALSE)
+}
+
+# ---- Table 2b — follow-up (2025) mediators and outcomes by A_SE cat4 (passthrough) ----
+log_msg(">>> Table 2b: follow-up (2025) mediators/outcomes by A_SE cat4")
+{ d <- read_dir(VALID_DIR, "followup_by_A_SE"); if (!is.null(d)) write_table(d, "table_2b_followup_by_A_SE") else log_msg("Table 2b SKIP (run ai_measurement_validity.R).") }
+
+# ---- Table 3b — SD-standardized TNIE for the primary cells (TNIE ÷ SD of the 2025 outcome) ----
+log_msg(">>> Table 3b: standardized TNIE (per SD of the 2025 outcome)")
+build_table3b <- function() {
+  sdd <- read_dir(VALID_DIR, "outcome_sd"); if (is.null(sdd)) { log_msg("Table 3b SKIP: outcome_sd.csv missing."); return(invisible(NULL)) }
+  rows <- list()
+  for (oc in names(OUTCOMES)) {
+    sd_y <- sdd$sd_2025[sdd$outcome == OUTCOME_VARS[[oc]]]; if (!length(sd_y)) next
+    for (construct in c("attach", "anthrop")) {
+      d <- read_outcome(construct, oc, "cat4_primary"); if (is.null(d)) next
+      d <- d[d$exposure == "A_SE_cat4" & d$estimand %in% c("tnie", "intmed", "te"), , drop = FALSE]
+      for (i in seq_len(nrow(d))) rows[[length(rows) + 1L]] <- data.frame(
+        Outcome = unname(OUTCOMES[oc]), Mediator = if (construct == "attach") "W_attach (AI-attachment)" else "W_anthrop (anthropomorphism)",
+        Contrast = d$contrast[i], Estimand = toupper(d$estimand[i]),
+        estimate = as.numeric(d$Estimate[i]), ci_lo = as.numeric(d[["95% CIL"]][i]), ci_hi = as.numeric(d[["95% CIU"]][i]),
+        sd_outcome_2025 = sd_y,
+        std_estimate = as.numeric(d$Estimate[i]) / sd_y, std_ci_lo = as.numeric(d[["95% CIL"]][i]) / sd_y, std_ci_hi = as.numeric(d[["95% CIU"]][i]) / sd_y,
+        est_ci = fmt_est_ci(d$Estimate[i], d[["95% CIL"]][i], d[["95% CIU"]][i]),
+        std_est_ci = fmt_est_ci(as.numeric(d$Estimate[i]) / sd_y, as.numeric(d[["95% CIL"]][i]) / sd_y, as.numeric(d[["95% CIU"]][i]) / sd_y),
+        p = fmt_p(as.numeric(d$P.val[i])), stringsAsFactors = FALSE)
+    }
+  }
+  if (!length(rows)) { log_msg("Table 3b SKIP: no cat4 inputs."); return(invisible(NULL)) }
+  write_table(do.call(rbind, rows), "table_3b_standardized_effects")
+}
+build_table3b()
+
+# ---- Sup Tables 13 (S6 row) and 14 — robustness of the six primary cells ----
+# ai_robustness.R writes REF and S6–S9 together; in the published Supplementary Data the S6
+# two-item attachment rows sit in Supplementary Table 13 (with the S5 per-item results) and
+# REF + S7–S9 form Supplementary Table 14.
+log_msg(">>> Sup Table 14: robustness specifications (REF, S7–S9) + Sup Table 13 S6 row")
+build_sup14_robustness <- function() {
+  cells <- read_dir(ROBUST_DIR, "robustness_cells"); joint <- read_dir(ROBUST_DIR, "robustness_joint"); specs <- read_dir(ROBUST_DIR, "robustness_specs")
+  if (is.null(cells) || is.null(joint)) { log_msg("Sup 13 (S6) / Sup 14 SKIP (run ai_robustness.R)."); return(invisible(NULL)) }
+  med_lab <- c(W_attach_c = "W_attach (AI-attachment)", W_anthrop_c = "W_anthrop (anthropomorphism)", W_attach2_c = "W_attach, 2 items (Q40.22 + Q40.24)")
+  out_lab <- setNames(unname(OUTCOMES), unname(OUTCOME_VARS))
+  rows <- list()
+  for (i in seq_len(nrow(joint))) {
+    j <- joint[i, ]
+    sub <- cells[cells$spec == j$spec & cells$mediator == j$mediator & cells$outcome == j$outcome, , drop = FALSE]
+    r <- list(Specification = if (!is.null(specs)) specs$label[match(j$spec, specs$spec)] else j$spec, spec = j$spec,
+              Mediator = unname(med_lab[j$mediator]), Outcome = unname(out_lab[j$outcome]), n = j$n)
+    for (con in c("Low vs None", "Mid vs None", "High vs None")) for (e in c("TNIE", "INT_med", "TE")) {
+      c1 <- sub[sub$contrast == con & sub$estimand == e, , drop = FALSE]
+      r[[paste0(e, "_", sub(" vs None", "", con))]]   <- if (nrow(c1)) fmt_est_ci(c1$estimate, c1$ci_lo, c1$ci_hi) else "—"
+      r[[paste0(e, "_", sub(" vs None", "", con), "_p")]] <- if (nrow(c1)) fmt_p(c1$p) else "—"
+    }
+    r$wald_chisq <- round(j$wald_chisq, 2); r$df <- j$df; r$p_joint <- fmt_p(j$p_joint)
+    rows[[length(rows) + 1L]] <- as.data.frame(r, stringsAsFactors = FALSE, check.names = FALSE)
+  }
+  out <- do.call(rbind, rows)
+  is_s6 <- out$spec == "S6"
+  if (any(is_s6))  write_table(out[is_s6, , drop = FALSE],  "sup_table_13_two_item_attachment_S6")
+  write_table(out[!is_s6, , drop = FALSE], "sup_table_14_robustness_S7_S9")
+  for (nm in c("robustness_specs", "timing_baseline_month", "ipw_weights_summary", "ipw_attrition_model")) { d <- read_dir(ROBUST_DIR, nm); if (!is.null(d)) write_table(d, paste0("sup_table_14_", nm)) }
+}
+build_sup14_robustness()
+
+# ---- Sup Table 15 — construct distinctness (correlations, reliability, HTMT) ----
+log_msg(">>> Sup Table 15: correlations / reliability / HTMT")
+for (nm in c("correlations_r", "correlations_p", "attachment_items_vs_loneliness", "reliability", "htmt")) { d <- read_dir(VALID_DIR, nm); if (!is.null(d)) write_table(d, paste0("sup_table_15_", nm)) }
+
+# ---- Sup Tables 16 & 17 — EFAs (passthrough incl. parallel-analysis solutions when written) ----
+log_msg(">>> Sup Tables 16-17: EFA attachment + UCLA-3; attachment + anthropomorphism + problematic use")
+for (st in list(c("efa_attach_ucla", "sup_table_16"), c("efa_attach_anthrop_pcus", "sup_table_17"))) {
+  for (suffix in c("loadings", "factor_cor", "fit", "variance", "parallel", "pa_loadings", "pa_factor_cor", "pa_fit")) {
+    d <- read_dir(VALID_DIR, paste0(st[1], "_", suffix)); if (!is.null(d)) write_table(d, paste0(st[2], "_", st[1], "_", suffix))
+  }
+}
+
+# ---- Sup Table 6 — baseline predictors of 2025 social/emotional use and of the two perceptions ----
+log_msg(">>> Sup Table 6: selection models")
+{ d <- read_dir(VALID_DIR, "selection_models")
+  if (!is.null(d)) { d$est_ci <- mapply(fmt_est_ci, d$estimate, d$ci_lo, d$ci_hi); d$p_fmt <- vapply(d$p, fmt_p, character(1)); write_table(d, "sup_table_6_selection_models") } }
+
+# ---- Sup Table 1 — baseline characteristics by generative-AI status at 2025 ----
+log_msg(">>> Sup Table 1: baseline characteristics by AI status")
+{ d <- read_dir(VALID_DIR, "ai_status_groups_baseline"); if (!is.null(d)) write_table(d, "sup_table_1_ai_status_groups") }
 
 # ============================================================
 # Figure 1 — Conceptual DAG placeholder (MD; drawn manually)
@@ -541,7 +664,7 @@ writeLines(c(
   "                                                                  baseline 2024 LSNS",
   "                                                                  in C - Kraut behavioral test)",
   "",
-  "Confounders: 39 baseline-2024 covariates (incl. baseline_ucla3, baseline_lsns_*).",
+  "Confounders: 44 baseline-2024 covariates (incl. baseline_ucla3, baseline_lsns_*, Big Five).",
   "Mediated interaction (A x M) is allowed: INT_med carries the indirect effect."),
   con = file.path(OUT_FIG, "figure_1_DAG_notes.md"))
 log_msg("  -> figure_1_DAG_notes.md")
@@ -559,7 +682,7 @@ build_sup_fig1 <- function() {
   step_lab <- c(
     raw                    = "JACSIS 2024 + 2025 panel\n(raw)",
     cohort_initiators_5_6  = "2025 AI initiators\n(Q37S1_2025 in {5, 6})",
-    analytic_complete_case = "Analytic complete-case\n(39 C + A + M + Y)"
+    analytic_complete_case = "Analytic complete-case\n(44 C + A + M + Y)"
   )
   steps <- intersect(names(step_lab), sf$step)
   if (length(steps) < 2L) { log_msg("Sup Fig 1 SKIP: need at least 2 sample-flow steps."); return(invisible(NULL)) }

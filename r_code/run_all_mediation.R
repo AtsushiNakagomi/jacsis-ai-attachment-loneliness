@@ -2,7 +2,7 @@
 # run_all_mediation.R
 # Sequential orchestrator for the mediation pipeline.
 # ============================================================
-# Runs the 6 outcome scripts + the manuscript packager in fresh R processes
+# Runs the 6 outcome scripts + the validity and robustness scripts + the manuscript packager in fresh R processes
 # (clean global environment per stage; one stage's crash does not poison the next).
 # Writes a master log + per-stage timing CSV to output/ai_mod/logs/.
 #
@@ -37,6 +37,8 @@ STAGES <- c(
   "ai_anthrop_loneliness.R",
   "ai_anthrop_lsns_friends.R",
   "ai_anthrop_lsns_family.R",
+  "ai_measurement_validity.R",
+  "ai_robustness.R",
   "ai_mediation_tables_figures.R"
 )
 
