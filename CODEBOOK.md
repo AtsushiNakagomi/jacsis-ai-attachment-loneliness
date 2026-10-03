@@ -1,7 +1,7 @@
 # Codebook — variable definitions and estimators
 
 AI social use → perceived AI-attachment / anthropomorphism → subjective loneliness and behavioral
-social-network displacement. Two-wave (2024 → 2025) panel, 2025 generative-AI initiators.
+social-network displacement. Two-wave (2024 → 2025) panel, 2025 generative-AI initiators; 44 baseline-2024 covariates.
 
 The design uses a **categorical exposure** (None + within-user tertiles) and **two parallel
 single-mediator analyses** (perceived AI-attachment; perceived anthropomorphism), each applied to
@@ -14,7 +14,7 @@ single-mediator analyses** (perceived AI-attachment; perceived anthropomorphism)
 **Cohort filter.** `Q37S1_2025 ∈ {5, 6}` (initiated generative-AI use in 2025) AND present in both
 waves. Never-users and earlier initiators are excluded: the perception mediators are asked of users
 only, and 2025 initiation preserves the temporal ordering **covariates @ 2024 → use initiated 2025
-→ mediators & outcomes @ 2025**. Analytic n ≈ 2,490 (complete-case).
+→ mediators & outcomes @ 2025**. Analytic n ≈ 2,490.
 
 | `Q37S1_2025` | Meaning | Action |
 |---|---|---|
@@ -160,7 +160,7 @@ operationalize behavioral social-network displacement.
 
 ---
 
-## 5. Covariates (C) — 39 baseline-2024
+## 5. Covariates (C) — 44 baseline-2024
 
 All at the **2024** wave (strictly pre-exposure). Per focal run, the two non-focal purpose
 composites (`A_*_c`) are appended.
@@ -172,20 +172,39 @@ composites (`A_*_c`) are appended.
   UCLA-3, baseline K6, ACE category (1, 2–3, 4+; ref 0), mental & physical health composite.
 - **Lifestyle / time-use (16):** smartphone, PC/tablet, sitting, walking — each four dummies
   (1–2 h, 3–4 h, 5+ h, unknown) against a `0–<1 h/day` reference.
+- **Big Five personality (5):** Ten-Item Personality Inventory, Japanese version (TIPI-J;
+  `Q79.1–10`, 1–7 agreement). Each domain is the mean of its two items after reversing the
+  reverse-keyed item (8 − x): extraversion (Q79.1, Q79.6R), agreeableness (Q79.2R, Q79.7),
+  conscientiousness (Q79.3, Q79.8R), neuroticism (Q79.4, Q79.9R), openness (Q79.5, Q79.10R).
 
-`stopifnot(length(C_VARS) == 39L)`.
+`stopifnot(length(C_VARS) == 44L)`.
 
 ---
 
 ## 6. Identification & timing
 
-A two-wave prospective panel with covariates strictly at 2024 preceding the 2025 outcomes
-(baseline-adjusted / lagged). It is **not** cross-sectional. However, exposure, mediators, and
-outcomes are all measured at the **2025** wave, so the mediation requirement "M precedes Y, no
-exposure-induced M–Y confounding" cannot be verified by timing. Report as an **associational effect
-decomposition under stated assumptions**, not clean causal mediation. The behavioral (LSNS)
-displacement pathway is the most timing-sensitive (a network outcome plausibly needs more than a
+A two-wave panel with covariates (including the baseline outcomes) strictly at 2024 preceding the
+2025 measurements (baseline-adjusted / lagged). However, exposure, mediators, and outcomes are all
+measured at the **2025** wave, so the ordering "A precedes M precedes Y" and the absence of
+exposure-induced M–Y confounding cannot be verified by timing. Report as an **associational effect
+decomposition under an assumed ordering**, not causal mediation. The behavioral (LSNS)
+displacement outcomes are the most timing-sensitive (a network outcome plausibly needs more than a
 one-year lag).
+
+**Baseline timing.** The 2024 wave was fielded December 2024 – January 2025 and `Q37S1_2025 = 5`
+denotes initiation in January 2025 or later; only respondents who completed the baseline in
+January 2025 could have initiated before it. `ai_robustness.R` re-estimates the six cells
+excluding those respondents (specification S7; completion timestamp `回答完了日時_2024`, UTC ISO,
+converted to Asia/Tokyo calendar month) and, separately, restricting to July–December 2025
+initiators (S8, `Q37S1_2025 = 6`).
+
+**Attrition.** All items are mandatory in the survey, so item non-response does not occur (income
+and time-use carry explicit "unknown" categories). Loss to follow-up between 2024 and 2025 is
+addressed by stabilized inverse-probability-of-response weights (specification S9): a logistic
+model of 2025 response on the 44 baseline covariates among all valid 2024 respondents
+(`data/jacsis_2024_all.csv`), predicted for the analytic cohort from its own baseline covariates,
+stabilized by the marginal response rate, truncated at the 1st/99th percentiles, and applied to the
+mediator and outcome models (weights held fixed across bootstrap replicates).
 
 ---
 
@@ -222,32 +241,33 @@ CDE  = delta·θ₁                PNDE = delta·(θ₁ + θ₃·β₁·a*)     
 These match the CMAverse `rb` decomposition to floating-point precision; the closed form is used for
 the parallelized continuous-exposure bootstrap (with a CMAverse cross-check).
 
-### 7.3 Sensitivity analyses (five; outside the primary family, descriptive)
+### 7.3 Sensitivity analyses S1–S5 (outside the primary family, descriptive)
 
-Five sensitivity analyses probe the robustness of the primary decomposition to the mediator and
-exposure parameterizations, the composite construction, and the correlation between the two
-mediators. The first four run in **every** outcome script (after the §1 primary + §1b omnibus); the
-fifth runs in the three W_attach outcome scripts.
+The manuscript (Section 3.3, "Sensitivity and robustness analyses") numbers nine analyses S1–S9 in
+three groups: model and variable specification (S1–S4), measurement of the mediators (S5–S6), and
+composition of the sample (S7–S9). S1–S5 run in the outcome scripts and are described here; S6–S9
+run in `ai_robustness.R` (§7.8). S1–S3 and S5 run in **every** outcome script (after the §1 primary +
+§1b omnibus); S4 runs in the three W_attach outcome scripts.
 
-- **Tertile mediator** (script §2) — the mediator coarsened to within-user tertiles
+- **S1 Tertile mediator** (script §2; Supplementary Table 9) — the mediator coarsened to within-user tertiles
   (`cmest` rb with a multinomial mediator model), across all 3 purposes. A coarsening-robustness
   lens; categorical M carries a known precision/bias cost relative to continuous M.
-- **Binary exposure** (script §3) — `any vs none`, across all 3 purposes. Robust to the mass at
+- **S2 Binary exposure** (script §3; Supplementary Table 10) — `any vs none`, across all 3 purposes. Robust to the mass at
   zero; the most-powered behavioral-displacement contrast.
-- **Continuous exposure** (script §4) — symmetric ∓0.5-SD contrast on the mean-centered exposure,
+- **S3 Continuous exposure** (script §4; Supplementary Table 11) — symmetric ∓0.5-SD contrast on the mean-centered exposure,
   via the closed-form engine (§7.2) with a CMAverse `cmest` rb cross-check, across all 3 purposes.
   Demoted from primary because of the A_SE right-skew.
-- **Per-item mediator** (script §5) — each of the three composite items used individually as a
+- **S5 Per-item mediator** (script §5; Supplementary Table 13) — each of the three composite items used individually as a
   single-item mediator (A_SE focal only; cat4 + binary), to check whether the composite signal
   rides on a single item.
-- **Joint-mediator interventional** (script §6; g-formula detail in §7.4) — because the two
+- **S4 Joint-mediator interventional** (script §6; Supplementary Table 12; g-formula detail in §7.4) — because the two
   mediators correlate r ≈ 0.65, natural path-specific effects are unidentified; this estimates the
   **randomized interventional analogue** of each mediator's effect *net of the other* (treating the
   other mediator as a post-exposure confounder). A_SE focal, all 3 outcomes, both directions.
 
-### 7.4 Fifth sensitivity — joint-mediator interventional (g-formula detail)
+### 7.4 S4 — joint-mediator interventional (g-formula detail)
 
-The fifth sensitivity (§7.3). Because the two mediators correlate r ≈ 0.65, natural path-specific
+Sensitivity analysis S4 (§7.3). Because the two mediators correlate r ≈ 0.65, natural path-specific
 effects are unidentified; the **randomized interventional analogue** is identified by treating the
 *other* mediator as an exposure-induced (post-treatment) confounder. Two symmetric g-formula runs
 (A_SE focal, per outcome): (a) mediator = attachment, post-confounder = anthropomorphism;
@@ -281,7 +301,7 @@ stream); a fixed seed is set at script start and reset before each bootstrap sec
 
 ### 7.7 Primary inference family & multiplicity
 
-The confirmatory family is **6 tests** = {attachment, anthropomorphism} × {UCLA-3, LSNS-friends,
+The primary inference family (defined before estimation; the study was not preregistered) is **6 tests** = {attachment, anthropomorphism} × {UCLA-3, LSNS-friends,
 LSNS-family}, focal exposure A_SE. Within a cell, the three cat4 dose contrasts (Low/Mid/High) are
 **levels of one relationship, not separate hypotheses**; the cell test is an **omnibus joint
 indirect-effect test** — a Wald χ² on the closed-form per-level TNIE vector with bootstrap
@@ -290,7 +310,43 @@ sensitivities are descriptive (outside the family). Output: each outcome script 
 omnibus to `<construct>_omnibus_primary.csv`; the packager assembles the 6 and writes
 `table_2_primary_omnibus_bh.csv` (manuscript Table 2) with the BH `q_BH`.
 
-### 7.8 Collinearity / centered-VIF diagnostic
+### 7.8 Robustness specifications S6–S9 (`ai_robustness.R`)
+
+The six primary cells (A_SE cat4 focal) are re-estimated under: REF, the primary specification
+(reference row); S6, a two-item attachment composite (Q40.22 + Q40.24; the three attachment cells);
+S7, January-2025 baseline responders excluded; S8, July–December 2025 initiators only; S9, attrition
+IPW. The estimator is the closed-form linear natural-effects engine (§7.2 generalized to a
+categorical exposure: for level L vs None with mediator-model coefficient bL, outcome-model
+coefficients t1L on A, t2 on M, t3L on A×M, and m0 the mean predicted mediator under None,
+TNIE = (t2 + t3L)·bL, PNIE = t2·bL, INT_med = t3L·bL, CDE = t1L, INT_ref = t3L·m0,
+PNDE = CDE + INT_ref, TE = PNDE + TNIE), with bootstrap percentile CIs (R = 1,000; 8 workers) and
+the same joint Wald χ²(3) test on the TNIE vector as §7.7. User-tertile cut-points are those of the
+full analytic cohort in every specification. Output: `robustness_cells.csv` (long),
+`robustness_joint.csv`, `robustness_specs.csv`, `timing_baseline_month.csv`,
+`ipw_attrition_model.csv`, `ipw_weights_summary.csv` → Supplementary Table 14 (reference and S7–S9); the S6
+two-item attachment rows are reported with the S5 per-item results in Supplementary Table 13.
+
+### 7.9 Measurement analyses (`ai_measurement_validity.R`)
+
+- Follow-up descriptives: 2025 means (SD) of both mediators and the three outcomes, and change
+  from the 2024 baseline, overall and by A_SE cat4 (Table 2b); 2025 outcome SDs used to express the
+  primary TNIE, INT_med and TE per SD of the outcome (Table 3b).
+- Construct distinctness: Pearson correlations among `W_attach`, the two-item `W_attach2`,
+  `W_anthrop`, problematic generative-AI use (`PCUS`, mean of `Q38.1–11`, 2025, 1–7), UCLA-3 2025
+  and 2024, LSNS-6 2025 and `A_SE`; item-level correlations of each attachment item with UCLA-3;
+  Cronbach's α; HTMT ratios (Henseler, Ringle & Sarstedt 2015; < 0.85 criterion) for attachment
+  vs UCLA-3, anthropomorphism and problematic use (Supplementary Table 15).
+- EFAs (MINRES, oblimin, Horn's parallel analysis recorded; theoretical factor number fitted and the
+  parallel-analysis solution written alongside when it differs): (a) attachment + UCLA-3 items
+  (2025; UCLA items recoded so higher = lonelier), two factors expected; (b) attachment +
+  anthropomorphism + problematic-use items, three factors expected (Supplementary Tables 16–17).
+- Selection: any social/emotional use (logistic), social/emotional intensity, `W_attach` and
+  `W_anthrop` (linear) regressed on the 44 baseline covariates; baseline UCLA-3, K6, LSNS and Big
+  Five coefficients are the quantities of interest (Supplementary Table 6).
+- Baseline characteristics of all two-wave respondents by generative-AI status at 2025 (never;
+  used before, not now; 2022–23, 2024 and 2025 initiators) (Supplementary Table 1).
+
+### 7.10 Collinearity / centered-VIF diagnostic
 
 A model-side collinearity check (`diagnosis_mediation.R`, Diagnostic 12; requires `car`) guards the
 exposure–mediator interaction against being inflated by near-collinear predictors. Per mediator it
@@ -310,13 +366,15 @@ interactions ≈ 1.3–1.8), confirming the interaction is identifiable with no 
 |---|---|
 | `ai_attach_loneliness.R`, `ai_attach_lsns_friends.R`, `ai_attach_lsns_family.R` | attachment mediator × 3 outcomes |
 | `ai_anthrop_loneliness.R`, `ai_anthrop_lsns_friends.R`, `ai_anthrop_lsns_family.R` | anthropomorphism mediator × 3 outcomes |
-| `run_all_mediation.R` | orchestrator — runs the 6 outcome scripts + packager in fresh R processes |
+| `run_all_mediation.R` | orchestrator — runs the 6 outcome scripts, the validity and robustness scripts, and the packager in fresh R processes |
+| `ai_measurement_validity.R` | follow-up descriptives, construct distinctness (correlations, HTMT, EFAs), selection models, AI-status groups (§7.9) |
+| `ai_robustness.R` | six primary cells under the reference specification and S6–S9 (§7.8) |
 | `ai_mediation_tables_figures.R` | manuscript tables + figures (downstream CSV reader; no analytic logic) |
 | `diagnosis_mediation.R` | pre-analysis diagnostics + EFA (measurement validation) + centered-VIF collinearity check |
 
 Each outcome script performs: build + cat4/tertile/binary factors → §1 cat4 primary → §1b cat4
-omnibus (A_SE focal) → the first four sensitivities (§7.3: tertile / binary / continuous /
-per-item). The three W_attach outcome scripts additionally run the **fifth sensitivity** (§6, the
+omnibus (A_SE focal) → sensitivity analyses S1, S2, S3, S5 (§7.3: tertile / binary / continuous /
+per-item). The three W_attach outcome scripts additionally run **S4** (§6, the
 joint-mediator interventional; the second mediator is built locally there, so the shared build block
 stays identical across all six scripts).
 
@@ -328,6 +386,8 @@ stays identical across all six scripts).
 output/ai_mod/[dummy/]
   mediation_<construct>_<outcome>/{tables,figures,logs}/   # one folder per (mediator × outcome)
   diagnosis_mediation/                                     # diagnostics + EFA
+  validity/{tables,logs}/                                  # measurement analyses (§7.9)
+  robustness/{tables,logs}/                                # robustness specifications (§7.8)
   manuscript/{tables,figures,logs}/                        # packaged tables + figures
   logs/                                                    # orchestrator master log + timings
 ```
@@ -340,12 +400,19 @@ output/ai_mod/[dummy/]
 |---|---|
 | Table 1 | Cohort characteristics, Total + by A_SE cat4 |
 | Table 2 | Primary multiplicity — cat4 omnibus joint indirect-effect p per (mediator × outcome), BH-FDR over 6 |
+| Table 2b | Follow-up (2025) mediators and outcomes, and change from baseline, Total + by A_SE cat4 |
 | Table 3 | Primary cat4 A_SE decomposition × 3 outcomes × both mediators (full 4-way, side-by-side) |
-| Sup 1 / 2 | EFA — AI-use purposes / mediators: loadings (+ h²/u²/complexity/MSA) + factor correlations + fit (KMO, Bartlett, RMSEA, TLI, RMSR, BIC) |
-| Sup 3 / 4 | Cohort characteristics by A_PC / A_DI cat4 |
-| Sup 5 / 6 | cat4 A_PC / A_DI specificity × both mediators |
-| Sup 7 / 8 / 9 | tertile-mediator / binary / continuous sensitivities × both mediators × 3 purposes |
-| Sup 10 | per-item cat4 A_SE × 3 outcomes × 6 single items |
-| Sup 11 | joint-mediator interventional (g-formula) × 3 outcomes, both configurations |
-| Figure 1 | Conceptual DAG (placeholder) |
+| Table 3b | Primary TNIE / INT_med / TE per SD of the 2025 outcome |
+| Sup 1 | baseline characteristics by generative-AI status at 2025 (all two-wave respondents) |
+| Sup 2 / 3 | EFA — AI-use purposes / mediators: loadings (+ h²/u²/complexity/MSA) + factor correlations + fit (KMO, Bartlett, RMSEA, TLI, RMSR, BIC) |
+| Sup 4 / 5 | Cohort characteristics by A_PC / A_DI cat4 |
+| Sup 6 | baseline predictors of 2025 social/emotional use and of the two perceptions |
+| Sup 7 / 8 | cat4 A_PC / A_DI specificity × both mediators |
+| Sup 9 / 10 / 11 | S1 tertile-mediator / S2 binary / S3 continuous sensitivities × both mediators × 3 purposes |
+| Sup 12 | S4 joint-mediator interventional (g-formula) × 3 outcomes, both configurations |
+| Sup 13 | S5 per-item cat4 A_SE × 3 outcomes × 6 single items + S6 two-item attachment composite (`sup_table_13_two_item_attachment_S6`) |
+| Sup 14 | robustness: reference and S7–S9 × six cells (+ baseline-timing cross-tabulation, attrition model, weight summary) |
+| Sup 15 | correlations, item-level correlations, reliability, HTMT |
+| Sup 16 / 17 | EFA attachment + UCLA-3 items / attachment + anthropomorphism + problematic-use items |
+| Figure 1 | Working model and decomposition (drawn manually) |
 | Sup Figure 1 | Sample flow chart |
